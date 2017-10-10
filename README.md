@@ -9,6 +9,10 @@ Rules:
 3. The game is won by the first player to eject 6 of the opponents marbles.
 
 
+Definitions:
+	1. (q,r,s) == (x,y,z)
+	2. The angles are defined the same was as a unit circle.  Counterclockwise, 360 degrees.
+
 
 Notes/Brainstorming:
 Movement:
@@ -31,5 +35,8 @@ Movement:
 Lines on a HexBoard:
 - A line can be defined by two coords out of (x,y,z) that move and the third one that doesn't change denotes the min distance from the origin the line passes through.
 
+
+More Notes:
+	- For efficieny, I should perhaps find the endpoints of the line of marbles in move().  Then rewrite valid_line.
 	
 	
