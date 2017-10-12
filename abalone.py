@@ -68,13 +68,23 @@ class HexBoard:
 		self.tiles = tiles
 		self.radius = r
 
-	def init_board_state():
-		pass
+	def init_board_state(self):
+		directions = [(1,-1,0), (1,0,-1), (0,1,-1), (-1,1,0), (-1,0,1), (0,-1,1)]
+		
+		black = [(0, 0, 0), (1, -1, 0), (2, -2, 0)]
+		white = [(-1, 1, 0), (-2, 2, 0)]
+		
+		for b in black:
+			self.tiles[b].add_marble("black")
+		for w in white:
+			self.tiles[w].add_marble("white")
+
+		
 	
 	# tests if marbles are in a valid line.  Tests inline and adjacency.
 	# requires: 2 or more hexes that contain marbles.
 	# returns the line that the marbles lie on or False**?(False or what?)
-	def valid_line(self, *marbles):
+	def valid_line(self, marbles):
 		assert(len(marbles) < 4),"Trying to move 4+ marbles. valid_line() in class HexBoard"
 		length = len(marbles)
 		line_axis = None
@@ -105,8 +115,9 @@ class HexBoard:
 	# Note: the hex past the end of pushed list (the one that will be occupied after
 	# the push) is empty. (and it must be)
 	# Note: both lists are sorted in the same direction
+	# the tip is the last element in pushing_list
 	# Requires: 2 or more marbles/hexes in total
-	def translate_marbles(self, direction, pushing_list, pushed_list):
+	def translate_marbles(self, direction, index, pushing_list, pushed_list):
 		pushing_len = len(pushing_list)
 		pushed_len = len(pushed_list)
 		
@@ -117,20 +128,29 @@ class HexBoard:
 		self.tiles[temp_key].marble = temp_hex.marble
 		
 		# moves the pushing list. It is arbitrary if tip or tail moves first since len>=2	
-		temp_hex = pushing_list[0]
+		temp_hex = pushing_list[0] #this is the tail
 		temp_key = (temp_hex.q + direction[0], temp_hex.r + direction[1], 
 					temp_hex.s + direction[2])
 		self.tiles[temp_key].marble = temp_hex.marble
-		self.tiles[temp_hex.key].del_marble() #makes sure last marble to move is deleted
 		
-		temp_hex = pushing_list[pushing_list - 1]
+		temp_hex = pushing_list[pushing_len - 1]
 		temp_key = (temp_hex.q + direction[0], temp_hex.r + direction[1], 
 					temp_hex.s + direction[2])
 		self.tiles[temp_key].marble = temp_hex.marble
-		self.tiles[temp_hex.key].del_marble()
-
+		
+		#makes sure last marble to move is deleted
+		if(index == 0): #leading with tail.
+			self.tiles[pushing_list[pushing_len - 1].key].del_marble()
+		else: #leading with tip	
+			self.tiles[pushing_list[0].key].del_marble()
+			
+		
+		
+		
 	# move_inline() moves marbles that are oriented in a line.
 	# index is either 0 for leading with tail or [length - 1] for leading with tip
+	### ADD FOR WHEN NOT PUSHING ANYTHING
+	# the problem is that the loop is based on length (of sorted), not how many beuing pushed
 	def move_inline(self, direction, index, length, sorted_marbles):
 		pushed_list = []
 		for i in range(1, length + 1, 1):
@@ -139,17 +159,22 @@ class HexBoard:
 				direction[1] * i + sorted_marbles[index].key[1],
 				direction[2] * i + sorted_marbles[index].key[2]
 				)
+			
+			#print(pushed_list)
+			print(self.tiles[cur_coord].is_empty())
 			if not(cur_coord in self.tiles): #tests if pushing to a hex.  If not, the marble will be eliminated
 				# don't need to delete, the marble is just overwritten in translate_marbles
-				self.translate_marbles(direction, sorted_marbles, pushed_list)
+				self.translate_marbles(direction, index, sorted_marbles, pushed_list)
+			elif self.tiles[cur_coord].is_empty(): #pushing to empty hex. Now just move
+				# remember case where say 3 push 2, hits empty and has to rewrite
+				self.translate_marbles(direction, index, sorted_marbles, pushed_list)
+				return True
 			elif i >= length: #when there is an equal force.  Cannot push.
 				return False
 			elif sorted_marbles[0].marble == self.tiles[cur_coord].marble:
 				#when trying to push a separated marble of same colour. Eg. BBBWB->
 				return False
-			elif self.tiles[cur_coord].is_empty(): #pushing to empty hex. Now just move
-				# remember case where say 3 push 2, hits empty and has to rewrite
-				self.translate_marbles(direction, sorted_marbles, pushed_list)
+			
 			pushed_list += [self.tiles[cur_coord]]
 	
 	# move_adjacent() moves a line of marbles in direction.  This is for sideways (no pushing)
@@ -166,13 +191,19 @@ class HexBoard:
 	
 	# moves the marbles on the hexes
 	# Requires: 1 or more Hexes that containing marbles
-	def move(self, direction, *marbles):
+	def move(self, direction, *coords):
+		
+		length = len(coords)
+		# converts coords entered into references to tiles
+		marbles = [None] * length
+		for i in range(0, length, 1):
+			marbles[i] = self.tiles[coords[i]]
+			
 		#makes sure one is trying to push without a marble
 		for ahex in marbles:
-			assert(ahex.marbles != "empty"), "Pushing with empty hex. move() in HexBoard"
+			assert(ahex.marble != "empty"), "Pushing with empty hex. move() in HexBoard"
 		
-		directions = [(1,-1,0), (1,0,-1), (0,1,-1), (-1,1,0), (-1,0,1), (0,-1,1)]
-		length = len(marbles)
+		
 		
 		if length == 1:
 			pass #actions for when only 1 marble
@@ -185,7 +216,7 @@ class HexBoard:
 		#if q, find greatest r
 		#if r find smallest s
 		#if s find greatest q
-		sorted_marbles = [None] * len(marbles) # the tip is the last element in sorted_marbles
+		sorted_marbles = [None] * length # the tip is the last element in sorted_marbles
 		if marble_line.axis == 'q':
 			sorted_marbles = sorted(marbles, key=lambda x: x.r, reverse=False)
 		elif marble_line.axis == 'r':
@@ -196,9 +227,9 @@ class HexBoard:
 		if dir_line.axis == marble_line.axis: #if true, the mvmt is forwards
 			#loop of the next length hexes in direction to see if occupied.			
 			if (direction == (1,-1,0)) or (direction == (1,0,-1)) or (direction == (0,1,-1)): #leading with tip
-				self.move_inline(length - 1, length, sorted_marbles)					
+				self.move_inline(direction, length - 1, length, sorted_marbles)					
 			else: # leading with tail. Only diff is using sorted_marbles[0] since tail
-				self.move_inline(0, length, sorted_marbles)
+				self.move_inline(direction, 0, length, sorted_marbles)
 					
 		else: #the movement is adjacent
 			for i in range(0, length):
@@ -248,8 +279,30 @@ def test_valid_line():
 		print("test_valid_line failed")
 
 
-#test_valid_line()
-
-
+def test_hexboard():
+	directions = [(1,-1,0), (1,0,-1), (0,1,-1), (-1,1,0), (-1,0,1), (0,-1,1)]
+	b = HexBoard(4)
+	# init works
+	b.init_board_state()
+	black = [(0, 0, 0), (1, -1, 0), (2, -2, 0)]
+	white = [(-1, 1, 0), (-2, 2, 0)]
+	#print(b.tiles[(0, 0, 0)].marble)
+	
+	print("(-3, 3, 0)w: " + b.tiles[(-3, 3, 0)].marble)
+	print("(-2, 2, 0)w: " + b.tiles[(-2, 2, 0)].marble)
+	print("(-1, 1, 0)b: " + b.tiles[(-1, 1, 0)].marble)
+	print("(0, 0, 0)b: " + b.tiles[(0,0,0)].marble)
+	print("(1, -1, 0)b: " + b.tiles[(1, -1, 0)].marble)
+	print("(2, -2, 0)e: " + b.tiles[(2, -2, 0)].marble)
+	
+	b.move(directions[3], black[0], black[1], black[2])	
+	print("(-3, 3, 0)w: " + b.tiles[(-3, 3, 0)].marble)
+	print("(-2, 2, 0)w: " + b.tiles[(-2, 2, 0)].marble)
+	print("(-1, 1, 0)b: " + b.tiles[(-1, 1, 0)].marble)
+	print("(0, 0, 0)b: " + b.tiles[(0,0,0)].marble)
+	print("(1, -1, 0)b: " + b.tiles[(1, -1, 0)].marble)
+	print("(2, -2, 0)e: " + b.tiles[(2, -2, 0)].marble)
+	
+test_hexboard()
 
 
